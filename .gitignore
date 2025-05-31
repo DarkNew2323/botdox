@@ -1,0 +1,3 @@
+# Ignorar carpeta con sesiones de Telethon
+user_session/
+*.session
