@@ -1,6 +1,6 @@
 import nest_asyncio
 nest_asyncio.apply()
-
+import os
 import asyncio
 from telethon import TelegramClient, events
 from telegram import Update
@@ -15,16 +15,35 @@ BOT_EXTERNO_USERNAME = 'DoxINVESTIGACION_BOT'
 # --- Cliente Telethon (usuario) ---
 telethon_client = TelegramClient('user_session', api_id, api_hash)
 
-async def enviar_comando_telethon(comando: str) -> str:
-    """
-    Envía el comando al bot externo y espera la respuesta final.
-    """
-    mensajes = []
+async def enviar_comando_telethon(comando: str):
+    mensajes_texto = []
     response_event = asyncio.Event()
 
     @telethon_client.on(events.NewMessage(chats=BOT_EXTERNO_USERNAME))
     async def handler(event):
-        mensajes.append(event.raw_text)
+        text = event.raw_text
+
+        # Filtrar líneas no deseadas
+        lineas = text.splitlines()
+        lineas_filtradas = []
+        for linea in lineas:
+            if any(palabra in linea for palabra in [
+                '[#INVESTIGACION_BOT]',
+                '[⚡] ESTADO DE CUENTA',
+                'CREDITOS ➾',
+                'USUARIO ➾',
+                '[🔰] VIP',
+                'TOKEN ➾',
+                'SALDO ➾',
+                'USUARIO VIP',
+            ]):
+                continue
+            lineas_filtradas.append(linea.strip())
+
+        texto_limpio = "\n".join(lineas_filtradas).strip()
+        if texto_limpio:
+            mensajes_texto.append(texto_limpio)
+
         response_event.set()
 
     await telethon_client.send_message(BOT_EXTERNO_USERNAME, comando)
@@ -32,13 +51,14 @@ async def enviar_comando_telethon(comando: str) -> str:
     while True:
         response_event.clear()
         try:
-            await asyncio.wait_for(response_event.wait(), timeout=3)
+            await asyncio.wait_for(response_event.wait(), timeout=10)
         except asyncio.TimeoutError:
             break
 
     telethon_client.remove_event_handler(handler)
 
-    return "\n\n".join(mensajes) if mensajes else "No se recibió respuesta del bot externo."
+    texto_completo = "\n\n".join(mensajes_texto) if mensajes_texto else "No se recibió respuesta."
+    return texto_completo
 
 # --- Funciones del bot propio ---
 
@@ -51,9 +71,11 @@ async def comando(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     comando_texto = ' '.join(context.args)
-    await update.message.reply_text(f"Enviando comando al bot externo: {comando_texto}")
-    respuesta = await enviar_comando_telethon(comando_texto)
-    await update.message.reply_text(f"Respuesta del bot externo:\n{respuesta}")
+    await update.message.reply_text(f"Infectando DataBae reniec: {comando_texto}")
+    texto = await enviar_comando_telethon(comando_texto)
+
+    if texto:
+        await update.message.reply_text(f"Respuesta del bot externo:\n{texto}")
 
 async def comandos(update: Update, context: ContextTypes.DEFAULT_TYPE):
     mensaje = """<b>[🧠 COMANDOS DISPONIBLES]</b>
@@ -61,33 +83,33 @@ async def comandos(update: Update, context: ContextTypes.DEFAULT_TYPE):
 <b>[🪪] RENIEC ONLINE - FREE</b>
 Comando ➾ <code>/dnix 44443333</code>
 Precio ➾ Gratis
-Resultado ➾ Foto e información media en (TEXTO).
+Resultado ➾ Información en texto.
 
 <b>[🔍] NOMBRE FILTER - FREE</b>
 Comando ➾ <code>/nm N¹|AP¹|AP²</code>
 Precio ➾ Gratis
-Resultado ➾ Filtrador de Nombres en (TEXTO Y TXT).
+Resultado ➾ Filtrado de nombres en texto.
 
 <b>[📞] OSIPTEL DATABASE - FREE</b>
 Comando ➾ <code>/tel 44443333</code>
 Comando ➾ <code>/tel 999888777</code>
 Precio ➾ Gratis
-Resultado ➾ Devuelve números y titulares desde OSIPTEL en (TEXTO).
+Resultado ➾ Números y titulares desde OSIPTEL en texto.
 
 <b>[📞] OSIPTEL OPERADOR - FREE</b>
 Comando ➾ <code>/op 999888777</code>
 Precio ➾ Gratis
-Resultado ➾ Devuelve el operador desde OSIPTEL en (TEXTO).
+Resultado ➾ Operador desde OSIPTEL en texto.
 
 <b>[📞] OSIPTEL VERIFICADOR - FREE</b>
 Comando ➾ <code>/osipver 44443333</code>
 Precio ➾ Gratis
-Resultado ➾ Devuelve las líneas desde OSIPTEL en (TEXTO).
+Resultado ➾ Líneas desde OSIPTEL en texto.
 
 <b>[💳] YAPE FAKE - GRATIS</b>
 Comando ➾ <code>/yape 10|LUIS PEDRO|1</code>
 Precio ➾ Gratis
-Resultado ➾ Genera un baucher fake en (FOTO).
+Resultado ➾ Genera un baucher fake en foto (próximamente).
 """
     await context.bot.send_message(
         chat_id=update.effective_chat.id,
@@ -114,6 +136,7 @@ async def main():
 
 # --- Ejecutar ---
 if __name__ == "__main__":
+    import asyncio
     try:
         asyncio.run(main())
     except RuntimeError as e:
